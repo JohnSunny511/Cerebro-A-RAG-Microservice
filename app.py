@@ -1,42 +1,66 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import chromadb
 import ollama
+import uuid
 
 app = FastAPI()
+
+
+
+# Database & Ollama Setup
 chroma = chromadb.PersistentClient(path="./db")
 collection = chroma.get_or_create_collection("docs")
 ollama_client = ollama.Client(host="http://host.docker.internal:11434")
 
+
+# --- STARTUP MESSAGE ---
+@app.on_event("startup")
+async def startup_event():
+    print("\n" + "="*50)
+    print("  RAG OS is running!")
+    print("  Click here to open: http://localhost:8000")
+    print("="*50 + "\n", flush=True)
+
+
+# --- SERVING THE UI ---
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+async def get_index():
+    # Return the HTML file when visiting the root URL
+    return FileResponse('static/index.html')
+
+# --- API ENDPOINTS ---
+
 @app.post("/query")
 def query(q: str):
     results = collection.query(query_texts=[q], n_results=1)
-    context = results["documents"][0][0] if results["documents"] else ""
-    print(f"Context being sent to Ollama: {context}")
+    context = results["documents"][0][0] if results["documents"] and results["documents"][0] else ""
     answer = ollama_client.generate(
         model="tinyllama",
-        prompt=f"Context:\n{context}\n\nQuestion: {q}\n\nAnswer only based on the provided context. If the answer is not in the context, say \"I don't know\". Answer clearly and concisely:",options={"temperature": 0.1}
+        prompt=f"Answer the Question only based on the provided context. If you cannot answer Question based on the provided Context due to lack of information just say 'I don't know'.Context:{context}\n\n Question:{q}\n"
     )
-
     return {"answer": answer["response"]}
 
 @app.post("/add")
 def add_knowledge(text: str):
-    """Add new content to the knowledge base dynamically."""
-    try:
-        # Generate a unique ID for this document
-        import uuid
-        doc_id = str(uuid.uuid4())
-        
-        # Add the text to Chroma collection
-        collection.add(documents=[text], ids=[doc_id])
-        
-        return {
-            "status": "success",
-            "message": "Content added to knowledge base",
-            "id": doc_id
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+    doc_id = str(uuid.uuid4())
+    collection.add(documents=[text], ids=[doc_id])
+    return {"status": "success", "id": doc_id}
+
+@app.get("/list")
+def list_knowledge():
+    data = collection.get()
+    docs = [{"id": data["ids"][i], "content": data["documents"][i]} 
+            for i in range(len(data["documents"] or []))]
+    return {"documents": docs}
+
+@app.delete("/delete/{doc_id}")
+def delete_knowledge(doc_id: str):
+    collection.delete(ids=[doc_id])
+    return {"status": "success"}
+
+
+    

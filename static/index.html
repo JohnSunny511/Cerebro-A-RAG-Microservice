@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Cerebro RAG MICROSERVICE</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff41;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            border: 2px solid #00ff41;
+            padding: 25px;
+        }
+
+        h1,
+        h3 {
+            text-transform: uppercase;
+            border-bottom: 1px solid #00ff41;
+        }
+
+        .section {
+            margin-bottom: 35px;
+            padding: 15px;
+            background: #111;
+        }
+
+        input {
+            background: #000;
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            padding: 12px;
+            width: 70%;
+        }
+
+        button {
+            background: #00ff41;
+            color: #000;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-delete {
+            background: #ff3333;
+            color: white;
+            padding: 5px 10px;
+            font-size: 10px;
+            margin-left: 10px;
+        }
+
+        #response,
+        .db-list {
+            background: #050505;
+            border: 1px solid #333;
+            padding: 15px;
+            margin-top: 10px;
+            min-height: 50px;
+        }
+
+        .doc-item {
+            border-bottom: 1px solid #222;
+            padding: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>>Cerebro_v1.1</h1>
+        <div class="section">
+            <h3>[01] INJECT_DATA</h3>
+            <input type="text" id="kbInput" placeholder="Input string..." onkeydown="handleEnter(event, 'add')">
+            <button onclick="add()">UPLOAD</button>
+        </div>
+        <div class="section">
+            <h3>[02] QUERY_CORE</h3>
+            <input type="text" id="queryInput" placeholder="Ask the database..." onkeydown="handleEnter(event, 'ask')">
+            <button onclick="ask()">EXECUTE</button>
+            <div id="response">> system_idle...</div>
+        </div>
+        <div class="section">
+            <h3>[03] MEMORY_MANIFEST</h3>
+            <button onclick="refreshDB()">SCAN SECTORS</button>
+            <div id="dbView" class="db-list">Initializing...</div>
+        </div>
+    </div>
+
+    <script>
+        async function add() {
+            const text = document.getElementById('kbInput').value;
+            if (!text) return;
+            await fetch(`/add?text=${encodeURIComponent(text)}`, { method: 'POST' });
+            document.getElementById('kbInput').value = '';
+            refreshDB();
+        }
+
+        async function ask() {
+            const q = document.getElementById('queryInput').value;
+            const out = document.getElementById('response');
+            out.innerText = "> processing...";
+            const res = await fetch(`/query?q=${encodeURIComponent(q)}`, { method: 'POST' });
+            const data = await res.json();
+            out.innerText = "> " + data.answer;
+        }
+
+        async function refreshDB() {
+            const view = document.getElementById('dbView');
+            const res = await fetch('/list');
+            const data = await res.json();
+            view.innerHTML = data.documents.map(doc => `
+                <div class="doc-item">
+                    <span>[${doc.id.substring(0, 8)}] ${doc.content}</span>
+                    <button class="btn-delete" onclick="remove('${doc.id}')">PURGE</button>
+                </div>
+            `).join('') || "> memory_empty";
+        }
+
+        async function remove(id) {
+            if (!confirm("Purge?")) return;
+            await fetch(`/delete/${id}`, { method: 'DELETE' });
+            refreshDB();
+        }
+
+        function handleEnter(event, action) {
+            if (event.key === "Enter") {
+                event.preventDefault(); // Prevents page reload
+                if (action === 'add') {
+                    add();
+                } else if (action === 'ask') {
+                    ask();
+                }
+            }
+        }
+
+        window.onload = refreshDB;
+    </script>
+</body>
+
+</html>
