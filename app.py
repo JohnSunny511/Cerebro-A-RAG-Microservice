@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -12,7 +13,8 @@ app = FastAPI()
 # Database & Ollama Setup
 chroma = chromadb.PersistentClient(path="./db")
 collection = chroma.get_or_create_collection("docs")
-ollama_client = ollama.Client(host="http://host.docker.internal:11434")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+ollama_client = ollama.Client(host=OLLAMA_HOST)
 
 
 # --- STARTUP MESSAGE ---
@@ -38,11 +40,18 @@ async def get_index():
 def query(q: str):
     results = collection.query(query_texts=[q], n_results=1)
     context = results["documents"][0][0] if results["documents"] and results["documents"][0] else ""
-    answer = ollama_client.generate(
+    
+    use_mock = os.getenv("USE_MOCK_LLM", "0") == "1"
+
+    if use_mock:
+        # Return retrieved context directly (deterministic!)
+        return {"answer": context}
+    else:
+        answer = ollama_client.generate(
         model="tinyllama",
         prompt=f"Answer the Question only based on the provided context. If you cannot answer Question based on the provided Context due to lack of information just say 'I don't know'.Context:{context}\n\n Question:{q}\n"
-    )
-    return {"answer": answer["response"]}
+        )
+        return {"answer": answer["response"]}
 
 @app.post("/add")
 def add_knowledge(text: str):
