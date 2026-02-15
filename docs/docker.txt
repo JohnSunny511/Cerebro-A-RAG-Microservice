@@ -1,0 +1,1 @@
+Docker is a tool that enables developers to build, run, and deploy applications in isolated, lightweight environments called containers.
