@@ -1,1 +1,15 @@
 venv/
+
+# executables
+*.exe
+
+# kubernetes tools
+kubectl
+minikube
+
+# python
+venv/
+__pycache__/
+
+# chroma db
+db/

@@ -13,6 +13,11 @@ COPY static/ ./static/
 # Install Python dependencies
 RUN pip install --no-cache-dir fastapi uvicorn chromadb ollama
 
+
+# This matches the host.docker.internal address you mentioned
+ENV OLLAMA_HOST=http://host.docker.internal:11434
+
+
 # Run your embedding script during build (Note: ensure embed.py doesn't 
 # require a running Ollama server if it's strictly local embedding)
 RUN python embed.py
