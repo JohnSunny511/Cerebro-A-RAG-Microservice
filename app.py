@@ -1,25 +1,55 @@
 import os
 import uuid
 import shutil
+from typing import List, Optional
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 import chromadb
-
 import ollama
 
 from file_loader import load_file
 from chunker import chunk_text
 
+# ---------------- API SCHEMAS (Pydantic) ----------------
+# These define exactly what the outside world sends and receives.
+class QueryResponse(BaseModel):
+    answer: str
+    confidence: int
+    status: str
 
-app = FastAPI()
+class KnowledgeItem(BaseModel):
+    filename: str
+    chunks: List[str]
+    count: int
+
+class ListResponse(BaseModel):
+    documents: List[KnowledgeItem]
+
+class StatusResponse(BaseModel):
+    status: str
+    message: Optional[str] = None
+
+# ---------------- APP INITIALIZATION ----------------
+app = FastAPI(title="Cerebro RAG Microservice")
+
+# 1. ENABLE CORS: Crucial for microservices
+# Allows your frontend (React, Vue, or static HTML) to call this API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # In production, replace with your specific domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------- DATABASE & OLLAMA ----------------
+# When running in a container, the path should usually be a volume like /app/db
 chroma = chromadb.PersistentClient(path="./db")
-
-# Use 'chroma' here, not 'client'
 collection = chroma.get_or_create_collection(
     name="docs", 
     metadata={"hnsw:space": "cosine"}
@@ -27,38 +57,23 @@ collection = chroma.get_or_create_collection(
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 ollama_client = ollama.Client(host=OLLAMA_HOST)
-
 MODEL_NAME = os.getenv("LLM_MODEL", "qwen2.5:3b")
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-# ---------------- STARTUP ----------------
-@app.on_event("startup")
-async def startup_event():
-    print("\n" + "="*50)
-    print("  CEREBRO RAG SERVER RUNNING")
-    print("  Open -> http://localhost:8000")
-    print("="*50 + "\n", flush=True)
-
-
-# ---------------- UI ----------------
+# ---------------- UI & STATIC ----------------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def get_index():
     return FileResponse("static/index.html")
 
+# ---------------- MICROSERVICE ENDPOINTS ----------------
 
-# ---------------- QUERY (WITH CONFIDENCE & CITATIONS) ----------------
-chat_history = []
-
-@app.post("/query")
+@app.post("/query", response_model=QueryResponse)
 def query(q: str):
-    global chat_history
-
-    # Retrieve more chunks to give the LLM the full picture
+    """Executes a RAG query against the vector database."""
     results = collection.query(query_texts=[q], n_results=8)
 
     context_items = []
@@ -70,45 +85,33 @@ def query(q: str):
             context_items.append(f"CONTENT: {doc}\nSOURCE: {source}")
 
     context_str = "\n\n---\n\n".join(context_items)
-    
-    # Prompting the LLM
     prompt = f"Answer the Question ONLY using the provided Context. Context:\n{context_str}\nQuestion: {q}"
-    response = ollama_client.generate(model=MODEL_NAME, prompt=prompt)
-    answer = response["response"]
+    
+    try:
+        response = ollama_client.generate(model=MODEL_NAME, prompt=prompt)
+        answer = response["response"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ollama Error: {str(e)}")
 
-    # --- SMART CONFIDENCE SCALING ---
-    # 1. Get the best distance (0.0 to 1.0 in Cosine space)
+    # Confidence Logic
     best_dist = results["distances"][0][0] if results["distances"] else 1.0
-    
-    # 2. Count how many unique chunks we found (Evidence Count)
-    evidence_weight = len(results["documents"][0]) * 5  # Add 5% for every chunk found
-    
-    # 3. Calculate Base Score: (Invert distance + add evidence weight + logic boost)
-    # We boost by 30 because if we found ANY docs, the LLM is usually capable.
+    evidence_weight = len(results["documents"][0]) * 5
     conf_percent = max(5, min(99, round((1.0 - best_dist) * 100) + evidence_weight + 30))
 
-    # If the LLM says "I don't know", force confidence to 0
     if "don't know" in answer.lower() or "do not know" in answer.lower():
         conf_percent = 0
 
     status = "HIGH" if conf_percent > 75 else "MEDIUM" if conf_percent > 40 else "LOW"
-
-    chat_history.append({"role": "user", "content": q})
-    chat_history.append({"role": "assistant", "content": answer})
-
-    return {"answer": answer, "confidence": conf_percent, "status": status}
+    return QueryResponse(answer=answer, confidence=conf_percent, status=status)
 
 
-# ---------------- ADD TEXT ----------------
-@app.post("/add")
+@app.post("/add", response_model=StatusResponse)
 def add_knowledge(text: str):
+    """Directly injects text into the knowledge base."""
     if not text.strip():
-        return {"status": "error", "message": "Empty text"}
+        return StatusResponse(status="error", message="Empty text")
         
     doc_id = str(uuid.uuid4())
-    
-    # Use the first 50 characters of the text as the 'source' 
-    # so the Manifest sees them as unique entries
     display_name = text[:50] + "..." if len(text) > 50 else text
 
     collection.add(
@@ -116,61 +119,41 @@ def add_knowledge(text: str):
         ids=[doc_id], 
         metadatas=[{"source": display_name}] 
     )
-    return {"status": "success", "id": doc_id}
+    return StatusResponse(status="success", message=doc_id)
 
 
-# ---------------- FILE UPLOAD (NEW FEATURE) ----------------
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    print("UPLOADED NAME:", file.filename)
+    """Uploads and chunks a file for indexing."""
     try:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
-
-        # save file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # extract text
         text = load_file(file_path)
-
         if not text.strip():
             return {"status": "error", "message": "File contains no readable text"}
 
-        # split into chunks
         chunks = chunk_text(text)
-
-        added = 0
         for chunk in chunks:
-            doc_id = str(uuid.uuid4())
             collection.add(
                 documents=[chunk],
-                ids=[doc_id],
+                ids=[str(uuid.uuid4())],
                 metadatas=[{"source": file.filename}]
             )
-            added += 1
 
-        return {
-            "status": "success",
-            "filename": file.filename,
-            "chunks_added": added
-        }
-
+        return {"status": "success", "filename": file.filename, "chunks_added": len(chunks)}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---------------- LIST ----------------
-# Replace your current /list endpoint with this:
-@app.get("/list")
+@app.get("/list", response_model=ListResponse)
 def list_knowledge():
+    """Lists all files and text chunks stored in the system."""
     data = collection.get(include=["metadatas", "documents"], limit=100)
-    
-    files = {} # Dictionary to group text by filename/source
+    files = {}
     metadatas = data.get("metadatas", [])
     documents = data.get("documents", [])
-
-    if not documents:
-        return {"documents": []}
 
     for i in range(len(documents)):
         meta = metadatas[i] or {}
@@ -183,36 +166,21 @@ def list_knowledge():
         files[display_name]["chunks"].append(content)
         files[display_name]["count"] += 1
 
-    result = [
-        {"filename": k, "chunks": v["chunks"], "count": v["count"]} 
-        for k, v in files.items()
-    ]
-    return {"documents": result}
+    result = [KnowledgeItem(filename=k, chunks=v["chunks"], count=v["count"]) for k, v in files.items()]
+    return ListResponse(documents=result)
 
-# ---------------- DELETE ----------------
 
-@app.delete("/delete/{identifier}")
+@app.delete("/delete/{identifier}", response_model=StatusResponse)
 def delete_knowledge(identifier: str):
-    """
-    Smart Delete: Checks if identifier is a filename (metadata) 
-    or a specific Doc ID.
-    """
-    # 1. Try to delete by filename (Source Metadata)
+    """Removes a file or specific entry from the memory."""
     collection.delete(where={"source": identifier})
-    
-    # 2. Also try to delete as a direct ID (for manual text entries)
     try:
         collection.delete(ids=[identifier])
     except:
         pass 
-
-    return {"status": "success", "message": f"Sector {identifier} purged."}
+    return StatusResponse(status="success", message=f"Sector {identifier} purged.")
 
 
 @app.post("/clear_history")
 def clear_history_logic():
-    global chat_history
-    chat_history = []
     return {"status": "memory_wiped"}
-
-# --- REMOVE the old 'delete_file_from_db' and the duplicate 'clear_history' ---

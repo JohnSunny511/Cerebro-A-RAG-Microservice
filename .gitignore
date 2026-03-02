@@ -13,3 +13,22 @@ __pycache__/
 
 # chroma db
 db/
+
+
+# Docker volumes
+ollama_data/
+db/
+chroma/
+chromadb/
+*.sqlite3
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+
+# Logs
+*.log

@@ -289,65 +289,73 @@ summary::-webkit-details-marker {
         refreshDB();
     }
 
-    async function ask() {
-        const q = document.getElementById('queryInput').value;
-        const out = document.getElementById('response');
-        if (!q) return;
-        out.innerHTML = "<span style='color: var(--primary);'>Searching vector space...</span>";
-        
-        try {
-            const res = await fetch(`/query?q=${encodeURIComponent(q)}`, { method: 'POST' });
-            const data = await res.json();
-            const badge = `<span class="badge badge-${data.status}">Confidence: ${data.confidence}%</span>`;
-            out.innerHTML = `${badge}<div style="margin-top:8px">${data.answer}</div>`;
-        } catch (err) {
-            out.innerHTML = "<span style='color: var(--danger);'>Error: Failed to connect to backend.</span>";
-        }
-    }
+    // --- UPDATED JAVASCRIPT FOR STANDARDIZED API ---
 
-    async function refreshDB() {
-    const view = document.getElementById('dbView');
-    const res = await fetch('/list');
-    const data = await res.json();
+async function ask() {
+    const q = document.getElementById('queryInput').value;
+    const out = document.getElementById('response');
+    if (!q) return;
     
-    if (!data.documents || data.documents.length === 0) {
-        view.innerHTML = "<p style='text-align:center; color: var(--text-muted);'>No data indexed yet.</p>";
-        return;
+    out.innerHTML = "<span style='color: var(--primary);'>Searching vector space...</span>";
+    
+    try {
+        // We now call the endpoint exactly as an external app would
+        const res = await fetch(`/query?q=${encodeURIComponent(q)}`, { method: 'POST' });
+        const data = await res.json();
+        
+        // The backend now strictly returns {answer, confidence, status}
+        const badge = `<span class="badge badge-${data.status}">Confidence: ${data.confidence}%</span>`;
+        out.innerHTML = `${badge}<div style="margin-top:8px">${data.answer}</div>`;
+    } catch (err) {
+        out.innerHTML = "<span style='color: var(--danger);'>Error: Failed to connect to backend.</span>";
     }
+}
 
-    view.innerHTML = data.documents.map(doc => {
-        // We escape the text to prevent any HTML injection from the stored data
-        const fullText = doc.chunks.join("\n\n---\n\n")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
+async function refreshDB() {
+    const view = document.getElementById('dbView');
+    try {
+        const res = await fetch('/list');
+        const data = await res.json();
+        
+        // IMPORTANT: Because we use 'ListResponse(documents=...)', 
+        // we must check data.documents specifically.
+        if (!data.documents || data.documents.length === 0) {
+            view.innerHTML = "<p style='text-align:center; color: var(--text-muted);'>No data indexed yet.</p>";
+            return;
+        }
 
-        return `
-            <div class="db-item">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <details style="flex-grow: 1;">
-                        <summary>
-                            <span class="expand-icon">▶</span>
-                            <span style="font-weight: 500; color: var(--text-main);">
-                                ${doc.filename} 
-                                <span style="color: var(--text-muted); font-size: 0.8rem; margin-left: 8px;">
-                                    (${doc.count} segments)
+        view.innerHTML = data.documents.map(doc => {
+            // Escape HTML to keep the UI clean
+            const fullText = doc.chunks.join("\n\n---\n\n")
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            return `
+                <div class="db-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <details style="flex-grow: 1;">
+                            <summary>
+                                <span class="expand-icon">▶</span>
+                                <span style="font-weight: 500; color: var(--text-main);">
+                                    ${doc.filename} 
+                                    <span style="color: var(--text-muted); font-size: 0.8rem; margin-left: 8px;">
+                                        (${doc.count} segments)
+                                    </span>
                                 </span>
-                            </span>
-                        </summary>
-                        <div class="chunk-detail">
-                            ${fullText}
-                        </div>
-                    </details>
-                    <button class="btn-outline" 
-                            style="color: var(--danger); padding: 4px 12px; font-size: 0.8rem; border-color: transparent;" 
-                            onclick="purgeFile('${doc.filename}')">
-                        Remove
-                    </button>
+                            </summary>
+                            <div class="chunk-detail">${fullText}</div>
+                        </details>
+                        <button class="btn-outline" 
+                                style="color: var(--danger); padding: 4px 12px; font-size: 0.8rem; border-color: transparent;" 
+                                onclick="purgeFile('${doc.filename}')">
+                            Remove
+                        </button>
+                    </div>
                 </div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+    } catch (err) {
+        view.innerHTML = "<p style='text-align:center; color: var(--danger);'>Error loading repository.</p>";
+    }
 }
 
     async function clearHistory() {
