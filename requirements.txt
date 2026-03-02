@@ -4,3 +4,5 @@ chromadb
 ollama
 pydantic
 python-dotenv
+pypdf
+python-multipart

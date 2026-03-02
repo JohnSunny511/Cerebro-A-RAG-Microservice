@@ -1,149 +1,377 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <title>Cerebro RAG MICROSERVICE</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cerebro RAG | Knowledge Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
     <style>
+        :root {
+            --primary: #2563eb;       /* Professional Blue */
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;            /* Light Gray Background */
+            --card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+
         body {
-            font-family: 'Courier New', monospace;
-            background: #0a0a0a;
-            color: #00ff41;
-            padding: 30px;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            line-height: 1.5;
         }
 
         .container {
-            max-width: 900px;
-            margin: auto;
-            border: 2px solid #00ff41;
-            padding: 25px;
+            max-width: 1000px;
+            margin: 0 auto;
         }
 
-        h1,
+        header {
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-weight: 600;
+            font-size: 2rem;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        header p {
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        /* Card System */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
         h3 {
-            text-transform: uppercase;
-            border-bottom: 1px solid #00ff41;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .section {
-            margin-bottom: 35px;
-            padding: 15px;
-            background: #111;
+        /* Inputs & Buttons */
+        .input-group {
+            display: flex;
+            gap: 10px;
         }
 
-        input {
-            background: #000;
-            border: 1px solid #00ff41;
-            color: #00ff41;
-            padding: 12px;
-            width: 70%;
+        input[type="text"], input[type="file"] {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            ring: 2px solid rgba(37, 99, 235, 0.1);
         }
 
         button {
-            background: #00ff41;
-            color: #000;
-            border: none;
-            padding: 12px 20px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
             cursor: pointer;
-            font-weight: bold;
-        }
-
-        .btn-delete {
-            background: #ff3333;
+            transition: all 0.2s;
+            border: none;
+            background: var(--primary);
             color: white;
-            padding: 5px 10px;
-            font-size: 10px;
-            margin-left: 10px;
         }
 
-        #response,
-        .db-list {
-            background: #050505;
-            border: 1px solid #333;
-            padding: 15px;
+        button:hover { background: var(--primary-hover); }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-outline:hover { background: #f1f5f9; }
+
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #dc2626; }
+
+        /* Response & Confidence UI */
+        #response {
+            margin-top: 16px;
+            padding: 16px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            position: relative;
+            min-height: 60px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .badge-HIGH { background: #dcfce7; color: #166534; }
+        .badge-MEDIUM { background: #fef9c3; color: #854d0e; }
+        .badge-LOW { background: #fee2e2; color: #991b1b; }
+
+        /* Memory Manifest Table-style */
+        .db-item {
+            border-bottom: 1px solid var(--border);
+            padding: 12px 0;
+        }
+        .db-item:last-child { border-bottom: none; }
+
+        .chunk-detail {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 6px;
             margin-top: 10px;
-            min-height: 50px;
+            padding: 12px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
         }
 
-        .doc-item {
-            border-bottom: 1px solid #222;
-            padding: 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        summary {
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--primary);
+            list-style: none;
         }
+
+        summary:hover { text-decoration: underline; }
+
+        .status-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+
+        /* Custom chevron icon style */
+.expand-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: var(--primary);
+    margin-right: 12px;
+    transition: transform 0.2s ease, background 0.2s ease;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.db-item details[open] .expand-icon {
+    transform: rotate(90deg);
+    background: var(--primary);
+    color: white;
+}
+
+/* Make summary look cleaner without the default arrow */
+summary {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    cursor: pointer;
+}
+
+summary::-webkit-details-marker {
+    display: none;
+}
+
     </style>
 </head>
-
 <body>
-    <div class="container">
-        <h1>>Cerebro_v1.1</h1>
-        <div class="section">
-            <h3>[01] INJECT_DATA</h3>
-            <input type="text" id="kbInput" placeholder="Input string..." onkeydown="handleEnter(event, 'add')">
-            <button onclick="add()">UPLOAD</button>
-        </div>
-        <div class="section">
-            <h3>[02] QUERY_CORE</h3>
-            <input type="text" id="queryInput" placeholder="Ask the database..." onkeydown="handleEnter(event, 'ask')">
-            <button onclick="ask()">EXECUTE</button>
-            <div id="response">> system_idle...</div>
-        </div>
-        <div class="section">
-            <h3>[03] MEMORY_MANIFEST</h3>
-            <button onclick="refreshDB()">SCAN SECTORS</button>
-            <div id="dbView" class="db-list">Initializing...</div>
+
+<div class="container">
+    <header>
+        <h1>Cerebro RAG Engine</h1>
+        <p>A high-performance retrieval augmented generation microservice.</p>
+    </header>
+
+    <div class="card">
+        <h3>Manual Data Entry</h3>
+        <div class="input-group">
+            <input type="text" id="kbInput" placeholder="Paste single-line text or raw data here...">
+            <button onclick="add()">Inject Knowledge</button>
         </div>
     </div>
 
-    <script>
-        async function add() {
-            const text = document.getElementById('kbInput').value;
-            if (!text) return;
-            await fetch(`/add?text=${encodeURIComponent(text)}`, { method: 'POST' });
-            document.getElementById('kbInput').value = '';
-            refreshDB();
-        }
+    <div class="card">
+        <h3>Document Processing</h3>
+        <div class="input-group">
+            <input type="file" id="fileInput">
+            <button class="btn-outline" onclick="uploadFile()">Upload PDF/Text</button>
+        </div>
+        <div id="uploadStatus" class="status-text">System ready for ingestion...</div>
+    </div>
 
-        async function ask() {
-            const q = document.getElementById('queryInput').value;
-            const out = document.getElementById('response');
-            out.innerText = "> processing...";
+    <div class="card" style="border-left: 4px solid var(--primary);">
+        <h3>Query Intelligence</h3>
+        <div class="input-group">
+            <input type="text" id="queryInput" placeholder="Ask a question based on your data...">
+            <button onclick="ask()">Run Inference</button>
+        </div>
+        <div id="response">
+            <span style="color: var(--text-muted);">Awaiting query execution...</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3>Knowledge Repository</h3>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-outline" onclick="refreshDB()">Refresh List</button>
+                <button class="btn-outline" onclick="clearHistory()" style="color: var(--warning);">Clear Chat</button>
+                <button class="btn-danger" onclick="wipeDatabase()">Wipe Core</button>
+            </div>
+        </div>
+        <div id="dbView">
+            <p style="text-align: center; color: var(--text-muted);">Scan sectors to view stored documents.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- KEEPING YOUR EXISTING LOGIC ---
+    async function add() {
+        const text = document.getElementById('kbInput').value;
+        if (!text) return;
+        await fetch(`/add?text=${encodeURIComponent(text)}`, { method: 'POST' });
+        document.getElementById('kbInput').value = '';
+        refreshDB();
+    }
+
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        const status = document.getElementById('uploadStatus');
+        if (!fileInput.files.length) return;
+        
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+        status.innerText = "Processing document...";
+        
+        const res = await fetch("/upload", { method: "POST", body: formData });
+        const data = await res.json();
+        status.innerText = data.status === "success" ? `Successfully indexed ${data.chunks_added} chunks.` : "Error: " + data.message;
+        refreshDB();
+    }
+
+    async function ask() {
+        const q = document.getElementById('queryInput').value;
+        const out = document.getElementById('response');
+        if (!q) return;
+        out.innerHTML = "<span style='color: var(--primary);'>Searching vector space...</span>";
+        
+        try {
             const res = await fetch(`/query?q=${encodeURIComponent(q)}`, { method: 'POST' });
             const data = await res.json();
-            out.innerText = "> " + data.answer;
+            const badge = `<span class="badge badge-${data.status}">Confidence: ${data.confidence}%</span>`;
+            out.innerHTML = `${badge}<div style="margin-top:8px">${data.answer}</div>`;
+        } catch (err) {
+            out.innerHTML = "<span style='color: var(--danger);'>Error: Failed to connect to backend.</span>";
         }
+    }
 
-        async function refreshDB() {
-            const view = document.getElementById('dbView');
-            const res = await fetch('/list');
-            const data = await res.json();
-            view.innerHTML = data.documents.map(doc => `
-                <div class="doc-item">
-                    <span>[${doc.id.substring(0, 8)}] ${doc.content}</span>
-                    <button class="btn-delete" onclick="remove('${doc.id}')">PURGE</button>
+    async function refreshDB() {
+    const view = document.getElementById('dbView');
+    const res = await fetch('/list');
+    const data = await res.json();
+    
+    if (!data.documents || data.documents.length === 0) {
+        view.innerHTML = "<p style='text-align:center; color: var(--text-muted);'>No data indexed yet.</p>";
+        return;
+    }
+
+    view.innerHTML = data.documents.map(doc => {
+        // We escape the text to prevent any HTML injection from the stored data
+        const fullText = doc.chunks.join("\n\n---\n\n")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+        return `
+            <div class="db-item">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <details style="flex-grow: 1;">
+                        <summary>
+                            <span class="expand-icon">▶</span>
+                            <span style="font-weight: 500; color: var(--text-main);">
+                                ${doc.filename} 
+                                <span style="color: var(--text-muted); font-size: 0.8rem; margin-left: 8px;">
+                                    (${doc.count} segments)
+                                </span>
+                            </span>
+                        </summary>
+                        <div class="chunk-detail">
+                            ${fullText}
+                        </div>
+                    </details>
+                    <button class="btn-outline" 
+                            style="color: var(--danger); padding: 4px 12px; font-size: 0.8rem; border-color: transparent;" 
+                            onclick="purgeFile('${doc.filename}')">
+                        Remove
+                    </button>
                 </div>
-            `).join('') || "> memory_empty";
-        }
+            </div>
+        `;
+    }).join('');
+}
 
-        async function remove(id) {
-            if (!confirm("Purge?")) return;
-            await fetch(`/delete/${id}`, { method: 'DELETE' });
-            refreshDB();
-        }
+    async function clearHistory() {
+        await fetch('/clear_history', { method: 'POST' });
+        document.getElementById('response').innerHTML = "Session history cleared.";
+    }
 
-        function handleEnter(event, action) {
-            if (event.key === "Enter") {
-                event.preventDefault(); // Prevents page reload
-                if (action === 'add') {
-                    add();
-                } else if (action === 'ask') {
-                    ask();
-                }
-            }
-        }
+    async function purgeFile(filename) {
+        if (!confirm("Delete this entry?")) return;
+        await fetch(`/delete/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+        refreshDB();
+    }
 
-        window.onload = refreshDB;
-    </script>
+    async function wipeDatabase() {
+        if (!confirm("Wipe entire database?")) return;
+        const res = await fetch('/list');
+        const data = await res.json();
+        for (let doc of data.documents) {
+            await fetch(`/delete/${encodeURIComponent(doc.filename)}`, { method: 'DELETE' });
+        }
+        refreshDB();
+    }
+
+    window.onload = refreshDB;
+</script>
 </body>
-
 </html>

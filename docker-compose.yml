@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    hostname: ollama-server
+    volumes:
+      - ./ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+
+  model-puller:
+    image: ollama/ollama:latest
+    container_name: ollama-model-puller
+    networks:
+      - rag-network
+    environment:
+      LLM_MODEL: qwen2.5:3b
+      OLLAMA_HOST: ollama-server:11434
+    entrypoint: /bin/sh
+    command: >
+      -c "sleep 4;
+          until ollama list > /dev/null 2>&1; do
+            echo 'Waiting for Ollama server...';
+            sleep 3;
+          done;
+          echo 'Pulling model...';
+          ollama pull $$LLM_MODEL"
+    depends_on:
+      - ollama
+
+
+  app:
+    build: .
+    container_name: rag-app
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_HOST: http://ollama-server:11434
+      LLM_MODEL: qwen2.5:3b
+    depends_on:
+      - ollama
+      - model-puller
+    networks:
+      - rag-network
+    restart: always
+
+
+networks:
+  rag-network:
+    driver: bridge
