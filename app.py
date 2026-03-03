@@ -37,6 +37,16 @@ class StatusResponse(BaseModel):
 # ---------------- APP INITIALIZATION ----------------
 app = FastAPI(title="Cerebro RAG Microservice")
 
+
+# ---------------- STARTUP LOGS ----------------
+@app.on_event("startup")
+async def startup_event():
+    print("\n" + "" + "="*50)
+    print("  CEREBRO RAG MICROSERVICE ACTIVE")
+    print("  API Documentation: http://localhost:8000/docs")
+    print("  Frontend UI:       http://localhost:8000")
+    print("="*50 + "\n", flush=True)
+
 # 1. ENABLE CORS: Crucial for microservices
 # Allows your frontend (React, Vue, or static HTML) to call this API.
 app.add_middleware(
@@ -47,19 +57,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ---------------- DATABASE & OLLAMA ----------------
-# When running in a container, the path should usually be a volume like /app/db
-chroma = chromadb.PersistentClient(path="./db")
+# If CHROMA_DB_PATH is set (Docker), use it. Otherwise, use local "./db"
+DB_PATH = os.getenv("CHROMA_DB_PATH", "./db")
+chroma = chromadb.PersistentClient(path=DB_PATH)
+
 collection = chroma.get_or_create_collection(
     name="docs", 
     metadata={"hnsw:space": "cosine"}
 )
 
+# If OLLAMA_HOST is set (Docker), use 'ollama-server'. Otherwise, 'localhost'
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 ollama_client = ollama.Client(host=OLLAMA_HOST)
+
+# If LLM_MODEL is set (Docker), use it. Otherwise, default to qwen
 MODEL_NAME = os.getenv("LLM_MODEL", "qwen2.5:3b")
 
-UPLOAD_DIR = "uploads"
+# Handles uploads directory flexibly
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------- UI & STATIC ----------------

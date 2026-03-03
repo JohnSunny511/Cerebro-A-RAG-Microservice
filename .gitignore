@@ -32,3 +32,6 @@ __pycache__/
 
 # Logs
 *.log
+
+uploads/*
+!uploads/.gitkeep

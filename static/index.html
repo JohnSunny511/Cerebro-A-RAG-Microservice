@@ -224,7 +224,7 @@ summary::-webkit-details-marker {
     <div class="card">
         <h3>Manual Data Entry</h3>
         <div class="input-group">
-            <input type="text" id="kbInput" placeholder="Paste single-line text or raw data here...">
+            <input type="text" id="kbInput" placeholder="Paste single-line text or raw data here..." onkeydown="handleKey(event, 'add')">
             <button onclick="add()">Inject Knowledge</button>
         </div>
     </div>
@@ -232,7 +232,7 @@ summary::-webkit-details-marker {
     <div class="card">
         <h3>Document Processing</h3>
         <div class="input-group">
-            <input type="file" id="fileInput">
+            <input type="file" id="fileInput" onkeydown="handleKey(event, 'upload')">
             <button class="btn-outline" onclick="uploadFile()">Upload PDF/Text</button>
         </div>
         <div id="uploadStatus" class="status-text">System ready for ingestion...</div>
@@ -241,7 +241,7 @@ summary::-webkit-details-marker {
     <div class="card" style="border-left: 4px solid var(--primary);">
         <h3>Query Intelligence</h3>
         <div class="input-group">
-            <input type="text" id="queryInput" placeholder="Ask a question based on your data...">
+            <input type="text" id="queryInput" placeholder="Ask a question based on your data..." onkeydown="handleKey(event, 'ask')">
             <button onclick="ask()">Run Inference</button>
         </div>
         <div id="response">
@@ -380,6 +380,16 @@ async function refreshDB() {
     }
 
     window.onload = refreshDB;
+
+    // Helper to handle Enter key presses
+function handleKey(event, action) {
+    if (event.key === "Enter") {
+        event.preventDefault(); // Prevents page reload or unexpected behavior
+        if (action === 'add') add();
+        if (action === 'upload') uploadFile();
+        if (action === 'ask') ask();
+    }
+}
 </script>
 </body>
 </html>

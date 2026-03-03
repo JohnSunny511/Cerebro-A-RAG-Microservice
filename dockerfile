@@ -2,19 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# system packages
+# Receive the model name from Docker Compose during build
+ARG LLM_MODEL=tinyllama
+# Set it as an Environment Variable so Python's os.getenv() can see it
+ENV LLM_MODEL=${LLM_MODEL}
+ENV OLLAMA_HOST=http://ollama-server:11434
+
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# install python deps first (for caching)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# NOW copy the entire project
-COPY . .
-
-ENV OLLAMA_HOST=http://ollama-server:11434
-
-RUN python embed.py
+RUN mkdir -p static uploads db
+COPY *.py ./
+COPY static/ ./static/
 
 EXPOSE 8000
 
