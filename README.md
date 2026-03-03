@@ -6,7 +6,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 
-Cerebro is a production-ready **RAG Microservice** designed to transform static documents into an interactive knowledge base. Built with a focus on **DevOps best practices**, it features automated CI/CD pipelines, containerized orchestration, and local LLM inference.
+Cerebro is a production-ready RAG Microservice designed to transform static documents into an interactive knowledge base by combining high-performance retrieval with local generative AI. Built with a focus on DevOps best practices, it features automated containerized orchestration and local LLM inference via Ollama to ensure data privacy and system scalability. The architecture is highly adaptable, allowing you to switch between different AI models (such as qwen2.5, tinyllama, or llama3) simply by updating the LLM_MODEL variable within the Docker Compose file.
 
 ---
 
@@ -17,6 +17,7 @@ Cerebro is a production-ready **RAG Microservice** designed to transform static 
 | **API Framework** | FastAPI | High-performance, asynchronous Python framework. |
 | **Brain** | Ollama (TinyLlama) | Local LLM inference for privacy and speed. |
 | **Memory** | ChromaDB | Vector database for semantic document retrieval. |
+| **Parsing**  | PyPDF | Automated text extraction from PDF and Markdown files. |
 | **Containerization** | Docker | Packaging the environment into immutable units. |
 | **Orchestration** | Kubernetes (Minikube) | Managing scaling and service networking. |
 | **CI/CD** | GitHub Actions | Automated testing and quality gatekeeping. |
@@ -26,58 +27,66 @@ Cerebro is a production-ready **RAG Microservice** designed to transform static 
 ## ✨ Key Features
 
 * **⚡ Real-time Injection:** Add text data to the knowledge base via the `/add` endpoint.
+* **📁 Multi-Format Ingestion:** Supports .pdf, .txt, and .md file uploads with automated chunking.
 * **🔍 Semantic Search:** Uses vector embeddings to find context, even if keywords don't match.
 * **🛡️ Private AI:** Runs entirely locally via Ollama—no data leaves your infrastructure.
 * **🧪 Deterministic Testing:** Includes a "Mock LLM" mode for CI/CD to verify retrieval logic without compute overhead.
-* **📟 Hacker UI:** A custom-built, terminal-themed frontend for interacting with the core.
+* **📊 Intelligence Metrics:** Provides a Confidence Score (%) and status (High/Medium/Low) for every answer.
+* **💻 Modern UI:** A clean, professional web dashboard for document management and real-time inference.
 
 ---
 
 
-## ⚡ Quick Start (Run with Docker)
+## 🛠️ API Endpoints
 
-Don't want to clone the repo? You can pull the pre-built image directly from Docker Hub and run it instantly:
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| **POST** | /query?q=... | Ask a question based on stored knowledge. |
+| **POST** | /upload | Upload a PDF/TXT file for indexing. |
+| **POST** | /add?text=... | Inject a quick string of text into memory. |
+| **GET**  | /list | View all indexed documents and their segments. |
+| **DELETE** | /delete/{id} | Purge specific document sectors from the core. |
+
+---
+
+
+## ⚡ Quick Start (Docker Compose)
+
+The fastest way to deploy the full stack (API + Ollama + Model Puller) is using Docker Compose:
 
 ```bash
-# Pull the latest image
-docker pull johnspalatty/rag-app
 
-# Run the container
-docker run -p 8000:8000 johnspalatty/rag-app
+# Start the entire infrastructure
+docker-compose up -d
+
+# UI
+http://localhost:8000/
+
+#FAST API
+http://localhost:8000/docs
 
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Manual Setup
 
 ### 1. Prerequisites
 * Python 3.10+
 * Docker Desktop
-* Ollama (running `tinyllama`)
+* Ollama (running qwen2.5:3b or tinyllama)
 
 ### 2. Installation
 ```bash
 # Clone the repo
-git clone [https://github.com/your-username/cerebro-rag.git](https://github.com/your-username/cerebro-rag.git)
+git clone https://github.com/JohnSunny511/cerebro-rag.git
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Run the service
-uvicorn main:app --reload
-3. Containerization
+uvicorn app:app --reload
 
-```
-
-### 3. Containerization
-
-```bash
-# Build the image
-docker build -t cerebro-rag .
-
-# Run via Docker
-docker run -p 8000:8000 cerebro-rag
 
 ```
 
@@ -89,11 +98,13 @@ Cerebro is built as a **loosely coupled microservice**. It exposes a RESTful API
 
 ```mermaid
 graph LR
-    User -->|API Request| FastAPI
-    FastAPI -->|Query| ChromaDB
-    ChromaDB -->|Context| FastAPI
+    User -->|Upload/Query| FastAPI
+    FastAPI -->|Chunking| Chunker
+    Chunker -->|Embeddings| ChromaDB
+    FastAPI -->|Context Retrieval| ChromaDB
+    ChromaDB -->|Relevant Context| FastAPI
     FastAPI -->|Augmented Prompt| Ollama
-    Ollama -->|Response| User
+    Ollama -->|Generated Answer| User
 
 ```
 
@@ -101,15 +112,14 @@ graph LR
 
 ## 🧪 DevOps & Quality
 
-This project implements a full **CI/CD pipeline** via GitHub Actions:
-
-* **Linting:** Ensures code PEP8 compliance.
-* **Semantic Testing:** Validates that the RAG system retrieves the correct documents.
-* **Mock Mode:** Allows for ultra-fast testing of the pipeline without needing a GPU.
+Cerebro is built with a "Reliability-First" mindset, ensuring the RAG pipeline is both predictable and easy to maintain:
+* **Pydantic Data Integrity:** Every request and response is strictly validated via Pydantic schemas, preventing "silent failures" and ensuring the API remains robust under heavy load.
+* **Smart Orchestration:** The model-puller service handles the heavy lifting of environment provisioning, ensuring the LLM is ready before the API accepts its first connection.
+* **Lightweight Testing Profile:** Optimized to run on standard hardware by utilizing efficient models like qwen2.5:3b, allowing for rapid local iteration without needing enterprise-grade GPUs.
 
 ---
 
 ## 👤 Author
 
 **John S Palatty**
-*Final Year Engineering Student & Backend Enthusiast*
+*Final Year Engineering Student & AI Enthusiast*
